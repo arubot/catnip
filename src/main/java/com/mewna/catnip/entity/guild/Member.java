@@ -37,6 +37,8 @@ import com.mewna.catnip.entity.impl.MemberImpl;
 import com.mewna.catnip.entity.user.User;
 import com.mewna.catnip.entity.util.Permission;
 import com.mewna.catnip.util.PermissionUtil;
+import io.reactivex.Observable;
+import io.reactivex.Single;
 
 import javax.annotation.CheckReturnValue;
 import javax.annotation.Nonnull;
@@ -45,7 +47,6 @@ import java.awt.*;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.*;
-import java.util.concurrent.CompletionStage;
 import java.util.stream.Collectors;
 
 /**
@@ -105,9 +106,9 @@ public interface Member extends Mentionable, PermissionHolder {
     @CheckReturnValue
     default Set<Role> roles() {
         final CacheView<Role> roles = catnip().cache().roles(guildId());
-        return Collections.unmodifiableSet(roleIds().stream()
+        return roleIds().stream()
                 .map(roles::getById)
-                .collect(Collectors.toSet()));
+                .collect(Collectors.toUnmodifiableSet());
     }
     
     /**
@@ -206,7 +207,7 @@ public interface Member extends Mentionable, PermissionHolder {
      */
     @JsonIgnore
     @CheckReturnValue
-    default CompletionStage<DMChannel> createDM() {
+    default Single<DMChannel> createDM() {
         return catnip().rest().user().createDM(id());
     }
     

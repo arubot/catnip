@@ -29,9 +29,9 @@ package com.mewna.catnip.rest.requester;
 
 import com.mewna.catnip.rest.Routes.Route;
 import com.mewna.catnip.rest.ratelimit.RateLimiter;
-import okhttp3.OkHttpClient.Builder;
 
 import javax.annotation.Nonnull;
+import java.net.http.HttpClient.Builder;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.Map;
@@ -54,11 +54,11 @@ public class SerialRequester extends AbstractRequester {
         private final Deque<QueuedRequest> queue = new ArrayDeque<>();
         private final AbstractRequester requester;
         private volatile boolean executingRequest;
-    
+        
         SerialBucket(final AbstractRequester requester) {
             this.requester = requester;
         }
-    
+        
         @Override
         public synchronized void queueRequest(@Nonnull final QueuedRequest request) {
             queue.offer(request);
@@ -67,7 +67,7 @@ public class SerialRequester extends AbstractRequester {
                 submit();
             }
         }
-    
+        
         @Override
         public synchronized void failedRequest(@Nonnull final QueuedRequest request, @Nonnull final Throwable failureCause) {
             request.failed();
@@ -80,7 +80,7 @@ public class SerialRequester extends AbstractRequester {
                 requestDone();
             }
         }
-    
+        
         @Override
         public synchronized void requestDone() {
             final boolean hadItems = !queue.isEmpty();
@@ -96,7 +96,7 @@ public class SerialRequester extends AbstractRequester {
                 throw new AssertionError("this should never happen");
             }
             requester.rateLimiter.requestExecution(request.route())
-                    .thenRun(() -> requester.executeRequest(request))
+                    .thenAccept(__ -> requester.executeRequest(request))
                     .exceptionally(e -> {
                         request.future.completeExceptionally(e);
                         return null;

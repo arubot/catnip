@@ -41,6 +41,7 @@ import com.mewna.catnip.entity.user.Presence;
 import com.mewna.catnip.entity.user.User;
 import com.mewna.catnip.entity.user.VoiceState;
 import com.mewna.catnip.util.SafeVertxCompletableFuture;
+import io.reactivex.Single;
 import io.vertx.core.Future;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
@@ -54,7 +55,6 @@ import javax.annotation.Nullable;
 import java.time.format.DateTimeFormatter;
 import java.util.Collection;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -341,62 +341,62 @@ public abstract class MemoryEntityCache implements EntityCacheWorker {
     
     @Nonnull
     @Override
-    public CompletableFuture<Guild> guildAsync(final long id) {
-        return SafeVertxCompletableFuture.completedFuture(guild(id));
+    public Single<Guild> guildAsync(final long id) {
+        return Single.fromFuture(SafeVertxCompletableFuture.completedFuture(guild(id)));
     }
     
     @Nonnull
     @Override
-    public CompletableFuture<User> userAsync(final long id) {
-        return SafeVertxCompletableFuture.completedFuture(user(id));
+    public Single<User> userAsync(final long id) {
+        return Single.fromFuture(SafeVertxCompletableFuture.completedFuture(user(id)));
     }
     
     @Nonnull
     @Override
-    public CompletableFuture<Presence> presenceAsync(final long id) {
-        return SafeVertxCompletableFuture.completedFuture(presence(id));
+    public Single<Presence> presenceAsync(final long id) {
+        return Single.fromFuture(SafeVertxCompletableFuture.completedFuture(presence(id)));
     }
     
     @Nonnull
     @Override
-    public CompletableFuture<Member> memberAsync(final long guildId, final long id) {
-        return SafeVertxCompletableFuture.completedFuture(member(guildId, id));
+    public Single<Member> memberAsync(final long guildId, final long id) {
+        return Single.fromFuture(SafeVertxCompletableFuture.completedFuture(member(guildId, id)));
     }
     
     @Nonnull
     @Override
-    public CompletableFuture<Role> roleAsync(final long guildId, final long id) {
-        return SafeVertxCompletableFuture.completedFuture(role(guildId, id));
+    public Single<Role> roleAsync(final long guildId, final long id) {
+        return Single.fromFuture(SafeVertxCompletableFuture.completedFuture(role(guildId, id)));
     }
     
     @Nonnull
     @Override
-    public CompletableFuture<GuildChannel> channelAsync(final long guildId, final long id) {
-        return SafeVertxCompletableFuture.completedFuture(channel(guildId, id));
+    public Single<GuildChannel> channelAsync(final long guildId, final long id) {
+        return Single.fromFuture(SafeVertxCompletableFuture.completedFuture(channel(guildId, id)));
     }
     
     @Nonnull
     @Override
-    public CompletableFuture<UserDMChannel> dmChannelAsync(final long id) {
-        return SafeVertxCompletableFuture.completedFuture(dmChannel(id));
+    public Single<UserDMChannel> dmChannelAsync(final long id) {
+        return Single.fromFuture(SafeVertxCompletableFuture.completedFuture(dmChannel(id)));
     }
     
     @Nonnull
     @Override
-    public CompletableFuture<CustomEmoji> emojiAsync(final long guildId, final long id) {
-        return SafeVertxCompletableFuture.completedFuture(emoji(guildId, id));
+    public Single<CustomEmoji> emojiAsync(final long guildId, final long id) {
+        return Single.fromFuture(SafeVertxCompletableFuture.completedFuture(emoji(guildId, id)));
     }
     
     @Nonnull
     @Override
-    public CompletableFuture<VoiceState> voiceStateAsync(final long guildId, final long id) {
-        return SafeVertxCompletableFuture.completedFuture(voiceState(guildId, id));
+    public Single<VoiceState> voiceStateAsync(final long guildId, final long id) {
+        return Single.fromFuture(SafeVertxCompletableFuture.completedFuture(voiceState(guildId, id)));
     }
     
     @Nonnull
     @Override
-    public CompletableFuture<User> selfUserAsync() {
-        return SafeVertxCompletableFuture.completedFuture(selfUser());
+    public Single<User> selfUserAsync() {
+        return Single.fromFuture(SafeVertxCompletableFuture.completedFuture(selfUser()));
     }
     
     protected int shardId(final long entityId) {

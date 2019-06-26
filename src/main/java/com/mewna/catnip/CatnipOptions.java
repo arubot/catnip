@@ -27,7 +27,6 @@
 
 package com.mewna.catnip;
 
-import com.google.common.collect.ImmutableSet;
 import com.mewna.catnip.cache.CacheFlag;
 import com.mewna.catnip.cache.EntityCacheWorker;
 import com.mewna.catnip.cache.SplitMemoryEntityCache;
@@ -52,15 +51,17 @@ import com.mewna.catnip.shard.session.DefaultSessionManager;
 import com.mewna.catnip.shard.session.SessionManager;
 import com.mewna.catnip.util.logging.DefaultLogAdapter;
 import com.mewna.catnip.util.logging.LogAdapter;
+import com.mewna.catnip.util.rx.RxHelpers;
+import io.reactivex.Scheduler;
 import io.vertx.core.json.JsonObject;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
 import lombok.experimental.Accessors;
-import okhttp3.OkHttpClient.Builder;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.net.http.HttpClient;
 import java.util.EnumSet;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -160,9 +161,9 @@ public final class CatnipOptions implements Cloneable {
      * the event names.
      */
     @Nonnull
-    private Set<String> disabledEvents = ImmutableSet.of();
+    private Set<String> disabledEvents = Set.of();
     @Nonnull
-    private Requester requester = new SerialRequester(new DefaultRateLimiter(), new Builder());
+    private Requester requester = new SerialRequester(new DefaultRateLimiter(), HttpClient.newBuilder());
     /**
      * Whether or not extensions overriding options should be logged. Defaults
      * to {@code true}.
@@ -213,6 +214,11 @@ public final class CatnipOptions implements Cloneable {
      * to make sure we're not missing any.
      */
     private long memberChunkTimeout = TimeUnit.SECONDS.toMillis(10);
+    /**
+     * The RxJava scheduler that catnip should use for scheduling things like
+     * stream subscriptions. Defaults to {@link RxHelpers#forkJoinScheduler()}.
+     */
+    private Scheduler scheduler = RxHelpers.forkJoinScheduler();
     
     @Override
     public Object clone() {

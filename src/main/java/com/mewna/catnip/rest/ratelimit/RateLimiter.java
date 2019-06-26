@@ -32,17 +32,19 @@ import com.mewna.catnip.rest.Routes.Route;
 
 import javax.annotation.CheckReturnValue;
 import javax.annotation.Nonnull;
-import java.util.concurrent.CompletionStage;
+import java.util.concurrent.CompletableFuture;
 
 public interface RateLimiter {
     void catnip(@Nonnull Catnip catnip);
     
     @Nonnull
     @CheckReturnValue
-    CompletionStage<Void> requestExecution(@Nonnull Route route);
+    CompletableFuture<Void> requestExecution(@Nonnull Route route);
     
     void updateRemaining(@Nonnull Route route, int remaining);
+    
     void updateLimit(@Nonnull Route route, int limit);
+    
     void updateReset(@Nonnull Route route, long resetTimestamp);
     
     //called after above 3 to signal no further updates will be done

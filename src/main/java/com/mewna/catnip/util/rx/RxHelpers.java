@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 amy, All rights reserved.
+ * Copyright (c) 2019 amy, All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -25,21 +25,39 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-package com.mewna.catnip.cache.view;
+package com.mewna.catnip.util.rx;
+
+import io.reactivex.Observable;
+import io.reactivex.Scheduler;
+import io.reactivex.schedulers.Schedulers;
+
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executors;
 
 /**
- * Always empty {@link NamedCacheView named cache view}.
+ * A collection of utility methods to help make using Rx not quite so potato
+ * when trying to convert between various things.
  *
- * @author natanbc
- *
- * @see NamedCacheView#empty()
- *
- * @since 12/15/18
- *
- * @deprecated Use {@link CacheView#noop()}.
+ * @author amy
+ * @since 5/18/19.
  */
-@Deprecated
-public class EmptyNamedCacheView<T> extends EmptyCacheView<T> {
-    @Deprecated
-    public static final NamedCacheView<?> INSTANCE = new EmptyNamedCacheView<>();
+public final class RxHelpers {
+    private RxHelpers() {
+    }
+    
+    public static Scheduler forkJoinScheduler() {
+        return Schedulers.from(Executors.newWorkStealingPool());
+    }
+    
+    public static <T> Observable<T> futureToObservable(final CompletableFuture<T> future) {
+        return Observable.create(subscriber ->
+                future.whenComplete((result, error) -> {
+                    if(error != null) {
+                        subscriber.onError(error);
+                    } else {
+                        subscriber.onNext(result);
+                        subscriber.onComplete();
+                    }
+                }));
+    }
 }

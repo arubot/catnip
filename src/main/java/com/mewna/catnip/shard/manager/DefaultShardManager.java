@@ -27,7 +27,6 @@
 
 package com.mewna.catnip.shard.manager;
 
-import com.google.common.collect.ImmutableList;
 import com.mewna.catnip.entity.misc.GatewayInfo;
 import com.mewna.catnip.shard.CatnipShard;
 import com.mewna.catnip.shard.LifecycleEvent.Raw;
@@ -36,6 +35,7 @@ import com.mewna.catnip.shard.ShardInfo;
 import com.mewna.catnip.util.SafeVertxCompletableFuture;
 import com.mewna.catnip.util.task.QueueTask;
 import com.mewna.catnip.util.task.ShardConnectTask;
+import io.reactivex.Single;
 import io.vertx.core.eventbus.DeliveryOptions;
 import io.vertx.core.eventbus.MessageConsumer;
 import lombok.Getter;
@@ -45,7 +45,6 @@ import javax.annotation.Nonnegative;
 import javax.annotation.Nonnull;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -106,9 +105,10 @@ public class DefaultShardManager extends AbstractShardManager {
     
     @Override
     public Collection<Integer> shardIds() {
-        return ImmutableList.copyOf(shardIds);
+        return List.copyOf(shardIds);
     }
     
+    @SuppressWarnings("ResultOfMethodCallIgnored")
     @Override
     public void start() {
         if(started) {
@@ -122,43 +122,46 @@ public class DefaultShardManager extends AbstractShardManager {
             addToConnectQueue(closeHandler.body().getId());
         }));
         
-        final CompletionStage<GatewayInfo> gatewayInfoCompletableFuture;
+        final Single<GatewayInfo> gatewayInfoCompletableFuture;
         if(catnip().gatewayInfo() != null) {
             // If we already have gateway info, eg. from validating the token,
             // then don't bother fetching it a second time
-            gatewayInfoCompletableFuture = SafeVertxCompletableFuture.completedFuture(catnip().gatewayInfo());
+            gatewayInfoCompletableFuture = Single.fromFuture(SafeVertxCompletableFuture.completedFuture(catnip().gatewayInfo()));
         } else {
             gatewayInfoCompletableFuture = catnip().rest().user().getGatewayBot();
         }
         
-        gatewayInfoCompletableFuture.thenAccept(gatewayInfo -> {
-            // Do some sanity checks
-            final int expectedShardCount;
-            if(shardCount == 0) {
-                expectedShardCount = gatewayInfo.shards();
-            } else {
-                expectedShardCount = shardCount;
-            }
-            
-            if(expectedShardCount > gatewayInfo.remainingSessions()) {
-                catnip().logAdapter().warn("{} shards requested, but only {} sessions available. Reset after {}, now is {}.",
-                        expectedShardCount, gatewayInfo.remainingSessions(), gatewayInfo.resetAfter(), System.currentTimeMillis());
-                catnip().logAdapter().warn("Token reset incoming!");
-            }
-            
-            // Actually start shards
-            if(shardCount == 0) {
-                shardCount = gatewayInfo.shards();
-                catnip().logAdapter().info("Loaded expected shard count: {}", shardCount);
-                shardIds.clear();
-                shardIds.addAll(IntStream.range(0, shardCount).boxed().collect(Collectors.toList()));
-                loadShards();
-            } else {
-                loadShards();
-            }
-        }).exceptionally(e -> {
-            throw new IllegalStateException("Couldn't load gateway info!", e);
-        });
+        gatewayInfoCompletableFuture.subscribe(this::checkGatewayInfo,
+                e -> {
+                    throw new IllegalStateException("Couldn't load gateway info!", e);
+                });
+    }
+    
+    private void checkGatewayInfo(final GatewayInfo gatewayInfo) {
+        // Do some sanity checks
+        final int expectedShardCount;
+        if(shardCount == 0) {
+            expectedShardCount = gatewayInfo.shards();
+        } else {
+            expectedShardCount = shardCount;
+        }
+        
+        if(expectedShardCount > gatewayInfo.remainingSessions()) {
+            catnip().logAdapter().warn("{} shards requested, but only {} sessions available. Reset after {}, now is {}.",
+                    expectedShardCount, gatewayInfo.remainingSessions(), gatewayInfo.resetAfter(), System.currentTimeMillis());
+            catnip().logAdapter().warn("Token reset incoming!");
+        }
+        
+        // Actually start shards
+        if(shardCount == 0) {
+            shardCount = gatewayInfo.shards();
+            catnip().logAdapter().info("Loaded expected shard count: {}", shardCount);
+            shardIds.clear();
+            shardIds.addAll(IntStream.range(0, shardCount).boxed().collect(Collectors.toList()));
+            loadShards();
+        } else {
+            loadShards();
+        }
     }
     
     private void loadShards() {

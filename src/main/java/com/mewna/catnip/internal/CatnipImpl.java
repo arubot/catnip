@@ -27,7 +27,6 @@
 
 package com.mewna.catnip.internal;
 
-import com.google.common.collect.ImmutableSet;
 import com.mewna.catnip.Catnip;
 import com.mewna.catnip.CatnipOptions;
 import com.mewna.catnip.cache.CacheFlag;
@@ -35,7 +34,6 @@ import com.mewna.catnip.cache.EntityCacheWorker;
 import com.mewna.catnip.entity.Entity;
 import com.mewna.catnip.entity.impl.*;
 import com.mewna.catnip.entity.impl.PresenceImpl.ActivityImpl;
-import com.mewna.catnip.entity.misc.ChunkingDone;
 import com.mewna.catnip.entity.misc.GatewayInfo;
 import com.mewna.catnip.entity.user.Presence;
 import com.mewna.catnip.entity.user.Presence.Activity;
@@ -59,6 +57,9 @@ import com.mewna.catnip.util.JsonPojoCodec;
 import com.mewna.catnip.util.PermissionUtil;
 import com.mewna.catnip.util.SafeVertxCompletableFuture;
 import com.mewna.catnip.util.logging.LogAdapter;
+import io.reactivex.Scheduler;
+import io.reactivex.Single;
+import io.reactivex.plugins.RxJavaPlugins;
 import io.vertx.core.Future;
 import io.vertx.core.Vertx;
 import io.vertx.core.eventbus.EventBus;
@@ -74,8 +75,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.lang.reflect.Field;
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -119,6 +118,7 @@ public class CatnipImpl implements Catnip {
     private long memberChunkTimeout;
     private Presence initialPresence;
     private Set<String> disabledEvents;
+    private Scheduler scheduler;
     private CatnipOptions options;
     
     public CatnipImpl(@Nonnull final Vertx vertx, @Nonnull final CatnipOptions options) {
@@ -149,9 +149,10 @@ public class CatnipImpl implements Catnip {
         captureRestStacktraces = options.captureRestStacktraces();
         initialPresence = options.presence();
         memberChunkTimeout = options.memberChunkTimeout();
-        disabledEvents = ImmutableSet.copyOf(options.disabledEvents());
+        disabledEvents = Set.copyOf(options.disabledEvents());
         logUncachedPresenceWhenNotChunking = options.logUncachedPresenceWhenNotChunking();
         warnOnEntityVersionMismatch = options.warnOnEntityVersionMismatch();
+        scheduler = options.scheduler();
         
         injectSelf();
     }
@@ -241,7 +242,7 @@ public class CatnipImpl implements Catnip {
     @Nonnull
     @Override
     public Set<String> unavailableGuilds() {
-        return ImmutableSet.copyOf(unavailableGuilds);
+        return Set.copyOf(unavailableGuilds);
     }
     
     public void markAvailable(final String id) {
@@ -295,12 +296,12 @@ public class CatnipImpl implements Catnip {
     }
     
     @Override
-    public CompletionStage<Presence> presence(@Nonnegative final int shardId) {
+    public Single<Presence> presence(@Nonnegative final int shardId) {
         final Future<Presence> future = Future.future();
         eventBus().send(
                 computeAddress(PRESENCE_UPDATE_REQUEST, shardId), null,
                 result -> future.complete((Presence) result.result().body()));
-        return SafeVertxCompletableFuture.from(this, future);
+        return Single.fromFuture(SafeVertxCompletableFuture.from(this, future));
     }
     
     @Override
@@ -349,34 +350,31 @@ public class CatnipImpl implements Catnip {
     }
     
     @Nonnull
-    public CompletableFuture<Catnip> setup() {
+    public Single<Catnip> setup() {
         codecs();
         
         if(validateToken) {
             return fetchGatewayInfo()
-                    .thenApply(gateway -> {
+                    .map(gateway -> {
                         logAdapter.info("Token validated!");
                         
                         parseClientId();
                         
                         //this is actually needed because generics are dumb
                         return (Catnip) this;
-                    }).exceptionally(e -> {
-                        logAdapter.warn("Couldn't validate token!");
+                    }).doOnError(e -> {
+                        logAdapter.warn("Couldn't validate token!", e);
                         throw new RuntimeException(e);
-                    })
-                    .toCompletableFuture();
+                    });
         } else {
             try {
                 parseClientId();
             } catch(final IllegalArgumentException e) {
                 final Exception wrapped = new RuntimeException("The provided token was invalid!", e);
-                // I would use SafeVertxCompletableFuture.failedFuture but that was added in Java 9+
-                // and catnip uses Java 8
-                return SafeVertxCompletableFuture.from(this, Future.failedFuture(wrapped));
+                return Single.fromFuture(SafeVertxCompletableFuture.failedFuture(wrapped));
             }
             
-            return SafeVertxCompletableFuture.completedFuture(this);
+            return Single.fromFuture(SafeVertxCompletableFuture.completedFuture(this));
         }
     }
     
@@ -508,15 +506,18 @@ public class CatnipImpl implements Catnip {
     
     @Nonnull
     @Override
-    public CompletionStage<GatewayInfo> fetchGatewayInfo() {
+    public Single<GatewayInfo> fetchGatewayInfo() {
         return rest.user().getGatewayBot()
-                .thenApply(g -> {
+                .map(g -> {
                     if(g.valid()) {
                         gatewayInfo.set(g);
                         return g;
                     } else {
                         throw new RuntimeException("Gateway info not valid! Is your token valid?");
                     }
+                })
+                .doOnError(e -> {
+                    throw new RuntimeException(e);
                 });
     }
 }

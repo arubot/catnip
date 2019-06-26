@@ -33,12 +33,13 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo.Id;
 import com.mewna.catnip.entity.Snowflake;
 import com.mewna.catnip.entity.util.Permission;
 import com.mewna.catnip.util.PermissionUtil;
+import io.reactivex.Observable;
+import io.reactivex.Single;
 import lombok.Getter;
 
 import javax.annotation.CheckReturnValue;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.concurrent.CompletionStage;
 
 /**
  * A Discord channel. A channel may not be attached to a guild (ex. in the case
@@ -62,11 +63,11 @@ public interface Channel extends Snowflake {
      *
      * @param reason The reason that will be displayed in audit log
      *
-     * @return A {@link CompletionStage} that is completed when the channel is
+     * @return A {@link Observable} that is completed when the channel is
      * deleted.
      */
     @Nonnull
-    default CompletionStage<Channel> delete(@Nullable final String reason) {
+    default Single<Channel> delete(@Nullable final String reason) {
         if(isGuild()) {
             PermissionUtil.checkPermissions(catnip(), asGuildChannel().guildId(), id(),
                     Permission.MANAGE_CHANNELS);
@@ -77,11 +78,11 @@ public interface Channel extends Snowflake {
     /**
      * Deletes the channel. This operation cannot be undone.
      *
-     * @return A {@link CompletionStage} that is completed when the channel is
+     * @return A {@link Observable} that is completed when the channel is
      * deleted.
      */
     @Nonnull
-    default CompletionStage<Channel> delete() {
+    default Single<Channel> delete() {
         return delete(null);
     }
     

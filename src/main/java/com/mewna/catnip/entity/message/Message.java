@@ -42,6 +42,8 @@ import com.mewna.catnip.entity.misc.Emoji;
 import com.mewna.catnip.entity.user.User;
 import com.mewna.catnip.entity.util.Permission;
 import com.mewna.catnip.util.PermissionUtil;
+import io.reactivex.Completable;
+import io.reactivex.Single;
 import org.apache.commons.lang3.Validate;
 
 import javax.annotation.CheckReturnValue;
@@ -50,7 +52,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.time.OffsetDateTime;
 import java.util.List;
-import java.util.concurrent.CompletionStage;
 
 /**
  * A single message in Discord.
@@ -322,7 +323,7 @@ public interface Message extends Snowflake {
      */
     @Nonnull
     @JsonIgnore
-    default CompletionStage<Void> react(@Nonnull final Emoji emoji) {
+    default Completable react(@Nonnull final Emoji emoji) {
         PermissionUtil.checkPermissions(catnip(), guildId(), channelId(),
                 Permission.ADD_REACTIONS, Permission.READ_MESSAGE_HISTORY);
         return catnip().rest().channel().addReaction(channelId(), id(), emoji);
@@ -338,17 +339,17 @@ public interface Message extends Snowflake {
      */
     @Nonnull
     @JsonIgnore
-    default CompletionStage<Void> react(@Nonnull final String emoji) {
+    default Completable react(@Nonnull final String emoji) {
         PermissionUtil.checkPermissions(catnip(), guildId(), channelId(),
                 Permission.ADD_REACTIONS, Permission.READ_MESSAGE_HISTORY);
         return catnip().rest().channel().addReaction(channelId(), id(), emoji);
     }
 
-//    default CompletionStage<Void> removeReaction()
+//    default Completable removeReaction()
     
     @Nonnull
     @JsonIgnore
-    default CompletionStage<Void> delete(@Nullable final String reason) {
+    default Completable delete(@Nullable final String reason) {
         final User self = catnip().selfUser();
         if(self != null && !author().id().equals(self.id())) {
             PermissionUtil.checkPermissions(catnip(), guildId(), channelId(),
@@ -359,32 +360,32 @@ public interface Message extends Snowflake {
     
     @Nonnull
     @JsonIgnore
-    default CompletionStage<Void> delete() {
+    default Completable delete() {
         return delete(null);
     }
     
     @Nonnull
     @JsonIgnore
-    default CompletionStage<Message> edit(@Nonnull final String content) {
+    default Single<Message> edit(@Nonnull final String content) {
         return catnip().rest().channel().editMessage(channelId(), id(), content);
     }
     
     @Nonnull
     @JsonIgnore
-    default CompletionStage<Message> edit(@Nonnull final Embed embed) {
+    default Single<Message> edit(@Nonnull final Embed embed) {
         return catnip().rest().channel().editMessage(channelId(), id(), embed);
     }
     
     @Nonnull
     @JsonIgnore
-    default CompletionStage<Message> edit(@Nonnull final Message message) {
+    default Single<Message> edit(@Nonnull final Message message) {
         Validate.isTrue(message.attachments().isEmpty(), "attachments cannot be edited into messages");
         return catnip().rest().channel().editMessage(channelId(), id(), message);
     }
     
     @Nonnull
     @JsonIgnore
-    default CompletionStage<Message> edit(@Nonnull final MessageOptions options) {
+    default Single<Message> edit(@Nonnull final MessageOptions options) {
         Validate.isTrue(options.files().isEmpty(), "attachments cannot be edited into messages");
         return catnip().rest().channel().editMessage(channelId(), id(), options.buildMessage());
     }

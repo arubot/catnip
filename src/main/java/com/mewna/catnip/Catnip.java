@@ -52,6 +52,8 @@ import com.mewna.catnip.util.Utils;
 import com.mewna.catnip.util.logging.LogAdapter;
 import io.reactivex.Flowable;
 import io.reactivex.Observable;
+import io.reactivex.Scheduler;
+import io.reactivex.Single;
 import io.vertx.core.Vertx;
 import io.vertx.core.eventbus.EventBus;
 import io.vertx.core.eventbus.MessageConsumer;
@@ -65,8 +67,6 @@ import javax.annotation.Nonnegative;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionStage;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -87,7 +87,7 @@ public interface Catnip {
      * @return A new catnip instance.
      */
     static Catnip catnip(@Nonnull final String token) {
-        return catnipAsync(token).join();
+        return catnipAsync(token).blockingGet();
     }
     
     /**
@@ -99,7 +99,7 @@ public interface Catnip {
      *
      * @return A new catnip instance.
      */
-    static CompletableFuture<Catnip> catnipAsync(@Nonnull final String token) {
+    static Single<Catnip> catnipAsync(@Nonnull final String token) {
         return catnipAsync(token, Vertx.vertx());
     }
     
@@ -113,7 +113,7 @@ public interface Catnip {
      * @return A new catnip instance.
      */
     static Catnip catnip(@Nonnull final CatnipOptions options) {
-        return catnipAsync(options).join();
+        return catnipAsync(options).blockingGet();
     }
     
     /**
@@ -125,7 +125,7 @@ public interface Catnip {
      *
      * @return A new catnip instance.
      */
-    static CompletableFuture<Catnip> catnipAsync(@Nonnull final CatnipOptions options) {
+    static Single<Catnip> catnipAsync(@Nonnull final CatnipOptions options) {
         return catnipAsync(options, Vertx.vertx());
     }
     
@@ -140,7 +140,7 @@ public interface Catnip {
      * @return A new catnip instance.
      */
     static Catnip catnip(@Nonnull final String token, @Nonnull final Vertx vertx) {
-        return catnipAsync(token, vertx).join();
+        return catnipAsync(token, vertx).blockingGet();
     }
     
     /**
@@ -153,7 +153,7 @@ public interface Catnip {
      *
      * @return A new catnip instance.
      */
-    static CompletableFuture<Catnip> catnipAsync(@Nonnull final String token, @Nonnull final Vertx vertx) {
+    static Single<Catnip> catnipAsync(@Nonnull final String token, @Nonnull final Vertx vertx) {
         return catnipAsync(new CatnipOptions(token), vertx);
     }
     
@@ -168,7 +168,7 @@ public interface Catnip {
      * @return A new catnip instance.
      */
     static Catnip catnip(@Nonnull final CatnipOptions options, @Nonnull final Vertx vertx) {
-        return catnipAsync(options, vertx).join();
+        return catnipAsync(options, vertx).blockingGet();
     }
     
     /**
@@ -181,9 +181,13 @@ public interface Catnip {
      *
      * @return A new catnip instance.
      */
-    static CompletableFuture<Catnip> catnipAsync(@Nonnull final CatnipOptions options, @Nonnull final Vertx vertx) {
+    static Single<Catnip> catnipAsync(@Nonnull final CatnipOptions options, @Nonnull final Vertx vertx) {
         return new CatnipImpl(vertx, options).setup();
     }
+    
+    @Nonnull
+    @CheckReturnValue
+    Scheduler scheduler();
     
     /**
      * @return The cached gateway info. May be null if it hasn't been fetched
@@ -203,7 +207,7 @@ public interface Catnip {
      */
     @Nonnull
     @CheckReturnValue
-    CompletionStage<GatewayInfo> fetchGatewayInfo();
+    Single<GatewayInfo> fetchGatewayInfo();
     
     /**
      * @return The vert.x instance being used by this catnip instance.
@@ -329,6 +333,7 @@ public interface Catnip {
      * it receives events from the gateway. You should only disable this if you
      * want to do something special with the raw event objects via hooks.
      */
+    @SuppressWarnings("BooleanMethodIsAlwaysInverted")
     boolean emitEventObjects();
     
     /**
@@ -620,8 +625,10 @@ public interface Catnip {
      * Get the presence for the specified shard.
      *
      * @param shardId The shard id to get presence for.
+     *
+     * @return A Single that completes with the shard's presence.
      */
-    CompletionStage<Presence> presence(@Nonnegative final int shardId);
+    Single<Presence> presence(@Nonnegative final int shardId);
     
     /**
      * Update the presence for all shards.
@@ -674,54 +681,46 @@ public interface Catnip {
         presence(null, game, type, url);
     }
     
-    /**
-     * Add a consumer for the specified event type.
-     *
-     * @param type The type of event to listen on.
-     * @param <T>  The object type of event being listened on.
-     *
-     * @return The vert.x message consumer.
-     */
-    default <T> MessageConsumer<T> on(@Nonnull final EventType<T> type) {
+    private <T> MessageConsumer<T> on(@Nonnull final EventType<T> type) {
         return dispatchManager().createConsumer(type.key());
     }
     
-    /**
-     * Add a consumer for the specified event type with the given handler
-     * callback.
-     *
-     * @param type    The type of event to listen on.
-     * @param handler The handler for the event object.
-     * @param <T>     The object type of event being listened on.
-     *
-     * @return The vert.x message consumer.
-     */
-    default <T> MessageConsumer<T> on(@Nonnull final EventType<T> type, @Nonnull final Consumer<T> handler) {
+    private <T> MessageConsumer<T> on(@Nonnull final EventType<T> type, @Nonnull final Consumer<T> handler) {
         return on(type).handler(m -> handler.accept(m.body()));
     }
     
     /**
-     * Add a reactive stream handler for events of the given type.
+     * Add a reactive stream handler for events of the given type. Can be
+     * disposed of with {@link Observable#unsubscribeOn(Scheduler)}. The
+     * {@code scheduler} argument can be created with
+     * {@link #scheduler()}.
+     * <p>
+     * This method automatically subscribes on {@link #scheduler()}.
      *
      * @param type The type of event to stream.
      * @param <T>  The object type of the event being streamed.
      *
      * @return The observable.
      */
-    default <T> Observable<T> observe(@Nonnull final EventType<T> type) {
-        return ObservableHelper.toObservable(on(type).bodyStream());
+    default <T> Observable<T> observable(@Nonnull final EventType<T> type) {
+        return ObservableHelper.toObservable(on(type).bodyStream()).subscribeOn(scheduler()).observeOn(scheduler());
     }
     
     /**
-     * Add a reactive stream handler for events of the given type.
+     * Add a reactive stream handler for events of the given type.  Can be
+     * disposed of with {@link Flowable#unsubscribeOn(Scheduler)}. The
+     * {@code scheduler} argument can be created with
+     * {@link #scheduler()}.
+     * <p>
+     * This method automatically subscribes on {@link #scheduler()}.
      *
      * @param type The type of event to stream.
      * @param <T>  The object type of the event being streamed.
      *
      * @return The flowable.
      */
-    default <T> Flowable<T> flow(@Nonnull final EventType<T> type) {
-        return FlowableHelper.toFlowable(on(type).bodyStream());
+    default <T> Flowable<T> flowable(@Nonnull final EventType<T> type) {
+        return FlowableHelper.toFlowable(on(type).bodyStream()).subscribeOn(scheduler()).observeOn(scheduler());
     }
     
     /**
@@ -734,7 +733,7 @@ public interface Catnip {
      *
      * @return The vert.x message consumer.
      */
-    default <T, E> MessageConsumer<Pair<T, E>> on(@Nonnull final DoubleEventType<T, E> type) {
+    private <T, E> MessageConsumer<Pair<T, E>> on(@Nonnull final DoubleEventType<T, E> type) {
         return dispatchManager().createConsumer(type.key());
     }
     
@@ -749,13 +748,18 @@ public interface Catnip {
      *
      * @return The vert.x message consumer.
      */
-    default <T, E> MessageConsumer<Pair<T, E>> on(@Nonnull final DoubleEventType<T, E> type,
+    private <T, E> MessageConsumer<Pair<T, E>> on(@Nonnull final DoubleEventType<T, E> type,
                                                   @Nonnull final BiConsumer<T, E> handler) {
         return on(type).handler(m -> handler.accept(m.body().getLeft(), m.body().getRight()));
     }
     
     /**
-     * Add a reactive stream handler for events of the given type.
+     * Add a reactive stream handler for events of the given type. Can be
+     * disposed of with {@link Observable#unsubscribeOn(Scheduler)}. The
+     * {@code scheduler} argument can be created with
+     * {@link #scheduler()}.
+     * <p>
+     * This method automatically subscribes on {@link #scheduler()}.
      *
      * @param type The type of event to stream.
      * @param <T>  The object type of the event being streamed.
@@ -763,12 +767,17 @@ public interface Catnip {
      *
      * @return The observable.
      */
-    default <T, E> Observable<Pair<T, E>> observe(@Nonnull final DoubleEventType<T, E> type) {
-        return ObservableHelper.toObservable(on(type).bodyStream());
+    default <T, E> Observable<Pair<T, E>> observable(@Nonnull final DoubleEventType<T, E> type) {
+        return ObservableHelper.toObservable(on(type).bodyStream()).subscribeOn(scheduler()).observeOn(scheduler());
     }
     
     /**
-     * Add a reactive stream handler for events of the given type.
+     * Add a reactive stream handler for events of the given type. Can be
+     * disposed of with {@link Flowable#unsubscribeOn(Scheduler)}. The
+     * {@code scheduler} argument can be created with
+     * {@link #scheduler()}.
+     * <p>
+     * This method automatically subscribes on {@link #scheduler()}.
      *
      * @param type The type of event to stream.
      * @param <T>  The object type of the event being streamed.
@@ -776,8 +785,8 @@ public interface Catnip {
      *
      * @return The flowable.
      */
-    default <T, E> Flowable<Pair<T, E>> flow(@Nonnull final DoubleEventType<T, E> type) {
-        return FlowableHelper.toFlowable(on(type).bodyStream());
+    default <T, E> Flowable<Pair<T, E>> flowable(@Nonnull final DoubleEventType<T, E> type) {
+        return FlowableHelper.toFlowable(on(type).bodyStream()).subscribeOn(scheduler()).observeOn(scheduler());
     }
     
     /**
@@ -804,7 +813,7 @@ public interface Catnip {
      *
      * @return A stage that completes when the webhook is validated.
      */
-    default CompletionStage<Webhook> parseWebhook(final String webhookUrl) {
+    default Single<Webhook> parseWebhook(final String webhookUrl) {
         final Pair<String, String> parse = Utils.parseWebhook(webhookUrl);
         return parseWebhook(parse.getLeft(), parse.getRight());
     }
@@ -818,7 +827,7 @@ public interface Catnip {
      *
      * @return A stage that completes when the webhook is validated.
      */
-    default CompletionStage<Webhook> parseWebhook(final String id, final String token) {
+    default Single<Webhook> parseWebhook(final String id, final String token) {
         return rest().webhook().getWebhookToken(id, token);
     }
 }

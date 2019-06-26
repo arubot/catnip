@@ -27,7 +27,6 @@
 
 package com.mewna.catnip.rest.guild;
 
-import com.google.common.collect.ImmutableList;
 import com.mewna.catnip.entity.guild.Member;
 import com.mewna.catnip.entity.guild.Role;
 import com.mewna.catnip.entity.user.VoiceState;
@@ -42,10 +41,7 @@ import lombok.experimental.Accessors;
 import javax.annotation.CheckReturnValue;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.Collection;
-import java.util.HashSet;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 
 /**
  * @author SamOphis
@@ -62,6 +58,7 @@ public class MemberData {
     private Set<String> roles;
     
     private String nickname;
+    @Setter(onParam_ = @Nullable, onMethod_ = {@CheckReturnValue, @Nonnull})
     private String channelId;
     private Boolean mute;
     private Boolean deaf;
@@ -87,7 +84,7 @@ public class MemberData {
     @Nonnull
     @CheckReturnValue
     public Collection<String> roles() {
-        return ImmutableList.copyOf(roles);
+        return List.copyOf(roles);
     }
     
     @Nonnull
